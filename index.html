@@ -928,7 +928,7 @@
   function renderUser() {
     const user = getUser();
     if (!brandSub) return;
-    brandSub.textContent = user?.name ? `أهلاً ${user.name}` : 'أهلاً بك';
+    brandSub.textContent = user?.username ? `أهلاً ${user.username}` : 'أهلاً بك';
   }
 
   function scrollToHash(hash) {
