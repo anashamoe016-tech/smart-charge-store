@@ -1152,7 +1152,7 @@
         nameInput?.focus();
         return;
       }
-      saveUser({ name, label });
+      saveUser({ username: name, name, label });
       showToast(label === 'signup' ? 'تم إنشاء الحساب' : 'تم تسجيل الدخول');
       closeModal();
     };
