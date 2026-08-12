@@ -76,6 +76,22 @@ const orderSchema = new mongoose.Schema(
     notes: {
         type: String,
         default: ""
+    },
+
+    executionAttempts: {
+        type: Number,
+        default: 0
+    },
+
+    lastExecutionAt: {
+        type: Date,
+        default: null
+    },
+
+    idempotencyKey: {
+        type: String,
+        default: "",
+        index: true
     }
 },
 {

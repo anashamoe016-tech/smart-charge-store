@@ -39,7 +39,3 @@ backend's URL.
 A placeholder service lives at `_backend_/services/providers/syriamarket.service.js`.
 Add `SYRIAMARKET_BASE_URL` and `SYRIAMARKET_API_TOKEN` to your `.env` when
 you have the credentials — no code changes needed.
-
-
-## Central Settings
-Edit `_settings_/Smart Charge Store.Settings.js` to control store-level configuration. Keep secrets in `_backend_/.env`.

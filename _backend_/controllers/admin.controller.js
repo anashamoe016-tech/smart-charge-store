@@ -4,6 +4,8 @@ import Deposit from "../models/deposit.model.js";
 import Settings from "../models/settings.model.js";
 import Game from "../models/game.model.js";
 import Package from "../models/package.model.js";
+import Provider from "../models/provider.model.js";
+import orderProcessor from "../services/order.processor.js";
 
 
 // لوحة التحكم
@@ -560,4 +562,108 @@ export const rejectDeposit = async (req, res) => {
 
     }
 
+};
+
+
+// أسعار الصرف والإعدادات التشغيلية
+export const getOperationalSettings = async (req, res) => {
+    try {
+        let settings = await Settings.findOne();
+        if (!settings) settings = await Settings.create({});
+        res.json({
+            success: true,
+            settings: {
+                siteName: settings.siteName,
+                defaultCurrency: settings.defaultCurrency,
+                supportedCurrencies: settings.supportedCurrencies,
+                currencyRates: Object.fromEntries(settings.currencyRates || []),
+                autoOrderExecution: settings.autoOrderExecution,
+                autoDepositProcessing: settings.autoDepositProcessing,
+                duplicateReceiptProtection: settings.duplicateReceiptProtection,
+                telegram: settings.telegram,
+                whatsapp: settings.whatsapp,
+                supportEmail: settings.supportEmail,
+                servers: settings.servers || [],
+                providerRegistry: settings.providerRegistry || []
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const updateOperationalSettings = async (req, res) => {
+    try {
+        let settings = await Settings.findOne();
+        if (!settings) settings = await Settings.create({});
+
+        const allowed = [
+            "siteName",
+            "defaultCurrency",
+            "supportedCurrencies",
+            "autoOrderExecution",
+            "autoDepositProcessing",
+            "duplicateReceiptProtection",
+            "telegram",
+            "whatsapp",
+            "supportEmail",
+            "servers",
+            "providerRegistry"
+        ];
+
+        for (const key of allowed) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                settings[key] = req.body[key];
+            }
+        }
+
+        if (req.body.currencyRates && typeof req.body.currencyRates === "object") {
+            settings.currencyRates = req.body.currencyRates;
+        }
+
+        await settings.save();
+
+        res.json({ success: true, settings });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const executeOrderNow = async (req, res) => {
+    try {
+        const result = await orderProcessor.processOne(req.params.id);
+        res.json({ success: true, result });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+export const createProvider = async (req, res) => {
+    try {
+        const provider = await Provider.create({
+            name: req.body.name,
+            code: req.body.code,
+            apiUrl: req.body.apiUrl || "",
+            orderEndpoint: req.body.orderEndpoint || "",
+            secretEnv: req.body.secretEnv || "",
+            status: req.body.status || "offline",
+            priority: Number(req.body.priority || 1),
+            autoOrders: Boolean(req.body.autoOrders),
+            autoSync: Boolean(req.body.autoSync),
+            timeout: Number(req.body.timeout || 30000)
+        });
+        res.status(201).json({ success: true, provider });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+export const removeProvider = async (req, res) => {
+    try {
+        const provider = await Provider.findByIdAndDelete(req.params.id);
+        if (!provider) return res.status(404).json({ success: false, message: "Provider not found." });
+        res.json({ success: true, message: "Provider deleted." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };

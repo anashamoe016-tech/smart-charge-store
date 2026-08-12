@@ -19,7 +19,12 @@ import {
 
     getAllDeposits,
     approveDeposit,
-    rejectDeposit
+    rejectDeposit,
+    getOperationalSettings,
+    updateOperationalSettings,
+    executeOrderNow,
+    createProvider,
+    removeProvider
 
 } from "../controllers/admin.controller.js";
 
@@ -28,8 +33,8 @@ import adminMiddleware from "../middleware/admin.middleware.js";
 
 const router = express.Router();
 
-// router.use(authMiddleware);
-// router.use(adminMiddleware);
+router.use(authMiddleware);
+router.use(adminMiddleware);
 
 // Dashboard
 router.get("/dashboard", dashboard);
@@ -54,6 +59,7 @@ router.delete("/packages/:id", deletePackage);
 // Orders
 router.get("/orders", getAllOrders);
 router.put("/orders/:id", updateOrderStatus);
+router.post("/orders/:id/execute", executeOrderNow);
 
 // Deposits
 router.get("/deposits", getAllDeposits);
@@ -61,3 +67,9 @@ router.put("/deposits/:id/approve", approveDeposit);
 router.put("/deposits/:id/reject", rejectDeposit);
 
 export default router;
+
+
+router.get("/operational-settings", getOperationalSettings);
+router.put("/operational-settings", updateOperationalSettings);
+router.post("/providers", createProvider);
+router.delete("/providers/:id", removeProvider);

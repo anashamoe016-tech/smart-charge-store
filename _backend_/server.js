@@ -15,12 +15,12 @@ import providersRoutes from "./routes/providers.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import configRoutes from "./routes/config.routes.js";
-import { loadCentralSettings, syncProviders } from "./services/central-settings.service.js";
+import orderProcessor from "./services/order.processor.js";
+import { ensureDbSettings } from "./services/central-settings.service.js";
 
 dotenv.config();
 
-connectDatabase();
-await loadCentralSettings();
+await connectDatabase();
 
 const app = express();
 
@@ -70,11 +70,21 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, async () => {
+  console.log(`${process.env.STORE_NAME || "Smart Charge Store"} running on port ${PORT}`);
+
   try {
-    await syncProviders();
-    console.log(`${process.env.STORE_NAME || "Smart Charge Store"} running on port ${PORT}`);
+    const settings = await ensureDbSettings();
+    if (settings.autoOrderExecution || process.env.AUTO_ORDERS === "true") {
+      setInterval(() => {
+        orderProcessor.processPending(10).catch((error) => {
+          console.error("Automatic order processor error:", error.message);
+        });
+      }, 15000);
+      console.log("Automatic order execution worker: ENABLED");
+    } else {
+      console.log("Automatic order execution worker: DISABLED");
+    }
   } catch (error) {
-    console.error("Central settings provider sync failed:", error);
-    console.log(`${process.env.STORE_NAME || "Smart Charge Store"} running on port ${PORT} with provider sync warnings`);
+    console.error("Could not initialize central settings:", error.message);
   }
 });

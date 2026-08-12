@@ -1,4 +1,47 @@
-Reform_Smart_Charge_Store_CENTRAL_SETTINGS_FINAL.zip
-_backend_/.env
+# Node.js
 node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary
+tmp/
+temp/
+
+# Build
+dist/
+build/
+
+# Cache
+.cache/
+
+# Uploads (إذا كانت تحتوي ملفات المستخدمين)
+uploads/
+
+# MongoDB dumps
+*.archive
+*.bson
+
+# Termux
+.termux/
+
+# npm
+npm-debug.log*
+
+_backend_/.env
 .git/

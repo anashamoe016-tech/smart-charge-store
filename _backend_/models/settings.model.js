@@ -71,6 +71,44 @@ const settingsSchema = new mongoose.Schema(
     orderProfitPercentage: {
         type: Number,
         default: 10
+    },
+
+    currencyRates: {
+        type: Map,
+        of: Number,
+        default: {
+            USD: 1,
+            SYP: 15000,
+            EUR: 0.92,
+            SAR: 3.75,
+            EGP: 48.5,
+            TRY: 39.2
+        }
+    },
+
+    autoOrderExecution: {
+        type: Boolean,
+        default: false
+    },
+
+    autoDepositProcessing: {
+        type: Boolean,
+        default: false
+    },
+
+    duplicateReceiptProtection: {
+        type: Boolean,
+        default: true
+    },
+
+    servers: {
+        type: [mongoose.Schema.Types.Mixed],
+        default: []
+    },
+
+    providerRegistry: {
+        type: [mongoose.Schema.Types.Mixed],
+        default: []
     }
 },
 {

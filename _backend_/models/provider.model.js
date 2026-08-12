@@ -18,7 +18,18 @@ const providerSchema = new mongoose.Schema(
 
     apiUrl: {
         type: String,
-        required: true
+        required: true,
+        default: ""
+    },
+
+    orderEndpoint: {
+        type: String,
+        default: ""
+    },
+
+    secretEnv: {
+        type: String,
+        default: ""
     },
 
     apiKey: {

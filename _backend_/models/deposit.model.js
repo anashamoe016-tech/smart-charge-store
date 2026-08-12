@@ -34,6 +34,29 @@ const depositSchema = new mongoose.Schema(
         default: ""
     },
 
+    receiptHash: {
+        type: String,
+        default: "",
+        index: true
+    },
+
+    receipt: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Receipt",
+        default: null
+    },
+
+    senderName: {
+        type: String,
+        default: "",
+        trim: true
+    },
+
+    transactionDate: {
+        type: Date,
+        default: null
+    },
+
     status: {
         type: String,
         enum: [

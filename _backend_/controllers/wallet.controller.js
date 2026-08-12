@@ -1,85 +1,105 @@
+import multer from "multer";
 import walletService from "../services/wallet.service.js";
+import { createReceiptRecord } from "../services/receipt.service.js";
+import Settings from "../models/settings.model.js";
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+export const receiptUpload = upload.single("receipt");
 
 export const getBalance = async (req, res) => {
-  try {
-    const userId = req.user?.id || "demo-user";
-
-    const balance = await walletService.getBalance(userId);
-
-    res.json({
-      success: true,
-      balance
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
+    try {
+        const balance = await walletService.getBalance(req.user.id);
+        const wallet = await walletService.getWallet(req.user.id);
+        res.json({ success: true, balance, wallet });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
-
 
 export const getHistory = async (req, res) => {
-  try {
-    const userId = req.user?.id || "demo-user";
-
-    const deposits = await walletService.getDeposits(userId);
-
-    res.json({
-      success: true,
-      deposits
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
+    try {
+        const deposits = await walletService.getDeposits(req.user.id);
+        res.json({ success: true, deposits });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
-
 
 export const deposit = async (req, res) => {
-  try {
+    try {
+        const amount = Number(req.body.amount);
+        const transactionDate = new Date(req.body.transactionDate);
+        const paymentMethod = String(req.body.paymentMethod || "").trim();
+        const transactionNumber = String(req.body.transactionNumber || "").trim();
+        const senderName = String(req.body.senderName || "").trim();
+        const currency = String(req.body.currency || "USD").toUpperCase();
 
-    const deposit = await walletService.createDeposit({
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: "Invalid deposit amount." });
+        }
+        if (!paymentMethod || !transactionNumber || !senderName || Number.isNaN(transactionDate.getTime())) {
+            return res.status(400).json({ success: false, message: "Sender name, transaction number, payment method and transaction date are required." });
+        }
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "Receipt image is required." });
+        }
 
-      user: req.user?.id || "demo-user",
+        let settings = await Settings.findOne();
+        if (!settings) settings = await Settings.create({});
 
-      amount: req.body.amount || 0,
+        const duplicateProtection =
+            settings.duplicateReceiptProtection !== false;
 
-      currency: req.body.currency || "USD",
+        let receipt = null;
+        if (duplicateProtection) {
+            receipt = await createReceiptRecord({
+                userId: req.user.id,
+                senderName,
+                transactionNumber,
+                transactionDate,
+                amount,
+                currency,
+                paymentMethod,
+                imageBuffer: req.file.buffer,
+                imageMimeType: req.file.mimetype
+            });
+        }
 
-      paymentMethod: req.body.paymentMethod || "unknown",
+        const depositDoc = await walletService.createDeposit({
+            user: req.user.id,
+            amount,
+            currency,
+            paymentMethod,
+            transactionNumber,
+            receiptImage: receipt?.imageData || "",
+            receiptHash: receipt?.imageHash || "",
+            receipt: receipt?._id || null,
+            senderName,
+            transactionDate,
+            status: "pending"
+        });
 
-      transactionNumber: req.body.transactionNumber || "",
+        if (receipt) {
+            receipt.status = "pending";
+            await receipt.save();
+        }
 
-      receiptImage: req.body.receiptImage || ""
-
-    });
-
-
-    res.json({
-
-      success: true,
-
-      message: "Deposit request submitted successfully.",
-
-      deposit
-
-    });
-
-
-  } catch (error) {
-
-    res.status(500).json({
-
-      success:false,
-
-      message:error.message
-
-    });
-
-  }
+        return res.status(201).json({
+            success: true,
+            message: "Deposit request submitted for review.",
+            deposit: depositDoc
+        });
+    } catch (error) {
+        const duplicate = /Duplicate receipt|Duplicate transaction number/i.test(error.message);
+        res.status(duplicate ? 409 : 400).json({
+            success: false,
+            message: error.message
+        });
+    }
 };
+
+export { upload };

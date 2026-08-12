@@ -5,13 +5,19 @@ const app = document.getElementById("app");
 const pageTitle = document.getElementById("pageTitle");
 
 async function request(path, options = {}) {
+    const token = localStorage.getItem("scs_admin_token") || "";
     const res = await fetch(API + path, {
         headers: {
             "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(options.headers || {})
         },
         ...options
     });
+
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("scs_admin_token");
+    }
 
     return await res.json();
 }
@@ -84,6 +90,46 @@ function tableCard(title, columns, rowsHtml, extra = "") {
 
 function setTitle(text) {
     pageTitle.textContent = text;
+}
+
+
+async function adminLogin() {
+    app.innerHTML = `
+      <div class="card" style="max-width:520px;margin:40px auto">
+        <h2>🔐 تسجيل دخول الإدارة</h2>
+        <p style="opacity:.75">لوحة التحكم محمية بحساب admin حقيقي من الـBackend.</p>
+        <div style="display:grid;gap:10px">
+          <input id="adminIdentity" placeholder="اسم المستخدم أو البريد" style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff">
+          <input id="adminPassword" type="password" placeholder="كلمة المرور" style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff">
+          <button id="adminLoginBtn" style="padding:12px 16px;background:#ff3030;border:none;border-radius:12px;color:#fff">دخول</button>
+        </div>
+      </div>`;
+    document.getElementById("adminLoginBtn").onclick = async () => {
+        const identity = document.getElementById("adminIdentity").value.trim();
+        const password = document.getElementById("adminPassword").value;
+        const res = await fetch(API + "/auth/login", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ identity, password })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) return alert(data.message || "فشل تسجيل الدخول");
+        if (data.user?.role !== "admin") return alert("هذا الحساب ليس حساب مدير.");
+        localStorage.setItem("scs_admin_token", data.token);
+        await loadPage("dashboard");
+    };
+}
+
+async function bootstrapAdmin() {
+    const token = localStorage.getItem("scs_admin_token");
+    if (!token) return adminLogin();
+
+    const r = await request("/auth/me").catch(() => ({ success:false }));
+    if (!r.success || r.user?.role !== "admin") {
+        localStorage.removeItem("scs_admin_token");
+        return adminLogin();
+    }
+    loadPage("dashboard");
 }
 
 async function dashboard() {
@@ -188,7 +234,10 @@ async function loadOrders() {
                 <div style="opacity:.65;font-size:12px">${esc(o.playerId || "-")}</div>
             </td>
             <td style="padding:12px 10px;border-bottom:1px solid #222">${fmtMoney(o.amount, o.currency || "USD")}</td>
-            <td style="padding:12px 10px;border-bottom:1px solid #222">${statusBadge(o.status)}</td>
+            <td style="padding:12px 10px;border-bottom:1px solid #222">
+                ${statusBadge(o.status)}
+                ${["pending","failed"].includes(String(o.status)) ? `<button onclick="executeOrder('${o._id}')" style="margin-top:6px;padding:6px 9px;background:#ff3030;color:#fff;border:none;border-radius:8px">⚡ تنفيذ</button>` : ""}
+            </td>
         </tr>
     `).join("");
 
@@ -212,7 +261,14 @@ async function loadDeposits() {
             <td style="padding:12px 10px;border-bottom:1px solid #222">${fmtMoney(d.amount, d.currency || "USD")}</td>
             <td style="padding:12px 10px;border-bottom:1px solid #222">${esc(d.paymentMethod || "-")}</td>
             <td style="padding:12px 10px;border-bottom:1px solid #222">${esc(d.transactionNumber || "-")}</td>
-            <td style="padding:12px 10px;border-bottom:1px solid #222">${statusBadge(d.status)}</td>
+            <td style="padding:12px 10px;border-bottom:1px solid #222">
+                ${statusBadge(d.status)}
+                ${d.status === "pending" ? `
+                  <div style="display:flex;gap:6px;margin-top:6px">
+                    <button onclick="reviewDeposit('${d._id}','approve')" style="padding:6px 9px;background:#173b22;color:#7CFF9B;border:none;border-radius:8px">قبول</button>
+                    <button onclick="reviewDeposit('${d._id}','reject')" style="padding:6px 9px;background:#3a1212;color:#ff8b8b;border:none;border-radius:8px">رفض</button>
+                  </div>` : ""}
+            </td>
         </tr>
     `).join("");
 
@@ -288,7 +344,10 @@ async function loadProviders() {
             <td style="padding:12px 10px;border-bottom:1px solid #222">${p.priority ?? 1}</td>
             <td style="padding:12px 10px;border-bottom:1px solid #222">${p.autoOrders ? "نعم" : "لا"}</td>
             <td style="padding:12px 10px;border-bottom:1px solid #222">${p.autoSync ? "نعم" : "لا"}</td>
-            <td style="padding:12px 10px;border-bottom:1px solid #222">${esc(p.apiUrl || "-")}</td>
+            <td style="padding:12px 10px;border-bottom:1px solid #222">
+                ${esc(p.apiUrl || "-")}
+                <button onclick="deleteProvider('${p._id}')" style="margin-right:8px;padding:6px 9px;background:#3a1212;color:#ff8b8b;border:none;border-radius:8px">حذف</button>
+            </td>
         </tr>
     `).join("");
 
@@ -296,9 +355,30 @@ async function loadProviders() {
         "🌐 المزودون",
         ["#", "الاسم", "Code", "الحالة", "الأولوية", "طلبات تلقائية", "مزامنة", "API"],
         rows,
-        `<button style="padding:10px 14px;background:#ff3030;border:none;border-radius:12px;color:#fff">➕ إضافة مزود</button>`
+        `<button id="addProviderBtn" style="padding:10px 14px;background:#ff3030;border:none;border-radius:12px;color:#fff">➕ إضافة مزود</button>`
     );
 }
+
+
+document.addEventListener("click", async (event) => {
+    if (event.target?.id !== "addProviderBtn") return;
+    const name = prompt("اسم المزود:");
+    if (!name) return;
+    const code = prompt("Code للمزود (مثال SYRIAMARKET):", name.toUpperCase().replace(/\s+/g, "_"));
+    if (!code) return;
+    const apiUrl = prompt("Base API URL:");
+    const orderEndpoint = prompt("Order endpoint (مثال orders):", "");
+    const secretEnv = prompt("اسم متغير السر في .env:", "");
+    const result = await request("/admin/providers", {
+        method: "POST",
+        body: JSON.stringify({
+            name, code, apiUrl, orderEndpoint, secretEnv,
+            status: "offline", priority: 10, autoOrders: false, autoSync: false
+        })
+    });
+    alert(result.success ? "تمت إضافة المزود" : (result.message || "تعذر إضافة المزود"));
+    if (result.success) loadProviders();
+});
 
 async function loadUsers() {
     setTitle("المستخدمون");
@@ -383,23 +463,106 @@ async function loadPayments() {
 async function loadSettings() {
     setTitle("الإعدادات");
 
+    const r = await request("/admin/operational-settings").catch(() => ({ settings: {} }));
+    const s = r.settings || {};
+    const rates = s.currencyRates || {};
+
+    const rateRows = Object.entries(rates).map(([code, value]) => `
+        <div style="display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center">
+            <strong>${esc(code)}</strong>
+            <input data-rate="${esc(code)}" type="number" step="0.0001" value="${Number(value) || 0}"
+                style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;width:100%">
+        </div>
+    `).join("");
+
     app.innerHTML = `
         <div class="card">
-            <h2>⚙️ إعدادات المتجر</h2>
+            <h2>⚙️ الإعدادات المركزية</h2>
+            <p style="opacity:.75">أي تعديل هنا يُحفظ في قاعدة البيانات ويُستخدم كإعداد تشغيلي مركزي.</p>
 
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-                <input placeholder="اسم المتجر" style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff">
-                <input placeholder="واتساب الدعم" style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff">
-                <input placeholder="تيليجرام الدعم" style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff">
-                <input placeholder="البريد الإلكتروني" style="padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff">
-            </div>
+            <div style="display:grid;gap:12px;margin-top:12px">
+                <label>اسم المتجر
+                    <input id="setSiteName" value="${esc(s.siteName || "Smart Charge Store")}" style="width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:6px">
+                </label>
 
-            <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-                <button style="padding:12px 16px;background:#ff3030;border:none;border-radius:12px;color:#fff">حفظ</button>
-                <button style="padding:12px 16px;background:#1c1c1c;border:1px solid #333;border-radius:12px;color:#fff">وضع الصيانة</button>
+                <label>العملة الافتراضية
+                    <input id="setDefaultCurrency" value="${esc(s.defaultCurrency || "USD")}" style="width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:6px">
+                </label>
+
+                <label>واتساب الدعم
+                    <input id="setWhatsapp" value="${esc(s.whatsapp || "")}" style="width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:6px">
+                </label>
+
+                <label>تيليجرام الدعم
+                    <input id="setTelegram" value="${esc(s.telegram || "")}" style="width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:6px">
+                </label>
+
+                <label>إيميل الدعم
+                    <input id="setEmail" value="${esc(s.supportEmail || "")}" style="width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:6px">
+                </label>
             </div>
         </div>
+
+        <br>
+
+        <div class="card">
+            <h2>💱 أسعار صرف العملات</h2>
+            <p style="opacity:.75">هذه هي القيم مقابل USD. مثال: SYP=15000 يعني 1 USD = 15000 SYP.</p>
+            <div style="display:grid;gap:10px;margin-top:12px">${rateRows}</div>
+        </div>
+
+        <br>
+
+        <div class="card">
+            <h2>⚡ التنفيذ والحماية</h2>
+            <label style="display:flex;gap:10px;align-items:center;margin:14px 0">
+                <input id="autoOrders" type="checkbox" ${s.autoOrderExecution ? "checked" : ""}>
+                تنفيذ طلبات الشحن تلقائياً
+            </label>
+            <label style="display:flex;gap:10px;align-items:center;margin:14px 0">
+                <input id="autoDeposits" type="checkbox" ${s.autoDepositProcessing ? "checked" : ""}>
+                معالجة طلبات الإيداع تلقائياً (لا تضيف رصيداً بلا تحقق خارجي)
+            </label>
+            <label style="display:flex;gap:10px;align-items:center;margin:14px 0">
+                <input id="dupProtection" type="checkbox" ${s.duplicateReceiptProtection !== false ? "checked" : ""}>
+                منع تكرار الإيصالات وأرقام العمليات
+            </label>
+
+            <button id="saveOperationalSettings" style="padding:12px 16px;background:#ff3030;border:none;border-radius:12px;color:#fff;font-weight:800">
+                💾 حفظ الإعدادات
+            </button>
+        </div>
     `;
+
+    document.getElementById("saveOperationalSettings").onclick = async () => {
+        const currencyRates = {};
+        document.querySelectorAll("[data-rate]").forEach(el => {
+            currencyRates[el.dataset.rate] = Number(el.value || 0);
+        });
+
+        const payload = {
+            siteName: document.getElementById("setSiteName").value.trim(),
+            defaultCurrency: document.getElementById("setDefaultCurrency").value.trim().toUpperCase(),
+            whatsapp: document.getElementById("setWhatsapp").value.trim(),
+            telegram: document.getElementById("setTelegram").value.trim(),
+            supportEmail: document.getElementById("setEmail").value.trim(),
+            currencyRates,
+            autoOrderExecution: document.getElementById("autoOrders").checked,
+            autoDepositProcessing: document.getElementById("autoDeposits").checked,
+            duplicateReceiptProtection: document.getElementById("dupProtection").checked
+        };
+
+        const result = await request("/admin/operational-settings", {
+            method: "PUT",
+            body: JSON.stringify(payload)
+        });
+
+        if (result.success) {
+            alert("تم حفظ الإعدادات بنجاح");
+        } else {
+            alert(result.message || "تعذر حفظ الإعدادات");
+        }
+    };
 }
 
 async function loadStatistics() {
@@ -483,5 +646,35 @@ window.loadSettings = loadSettings;
 window.loadStatistics = loadStatistics;
 
 document.addEventListener("DOMContentLoaded", () => {
-    loadPage("dashboard");
+    bootstrapAdmin();
 });
+
+async function executeOrder(id) {
+    const r = await request(`/admin/orders/${encodeURIComponent(id)}/execute`, { method: "POST", body: JSON.stringify({}) });
+    alert(r.success ? "تم إرسال الطلب للتنفيذ." : (r.message || "فشل التنفيذ"));
+    loadOrders();
+}
+window.executeOrder = executeOrder;
+
+async function deleteProvider(id) {
+    if (!confirm("حذف المزود؟")) return;
+    const r = await request(`/admin/providers/${encodeURIComponent(id)}`, { method: "DELETE" });
+    alert(r.success ? "تم حذف المزود" : (r.message || "تعذر حذف المزود"));
+    loadProviders();
+}
+window.deleteProvider = deleteProvider;
+
+async function reviewDeposit(id, action) {
+    const path = action === "approve"
+        ? `/admin/deposits/${encodeURIComponent(id)}/approve`
+        : `/admin/deposits/${encodeURIComponent(id)}/reject`;
+
+    const r = await request(path, {
+        method: "PUT",
+        body: JSON.stringify({})
+    });
+
+    alert(r.success ? (action === "approve" ? "تم قبول الإيداع وإضافة الرصيد." : "تم رفض الإيداع.") : (r.message || "تعذر معالجة الإيداع."));
+    loadDeposits();
+}
+window.reviewDeposit = reviewDeposit;

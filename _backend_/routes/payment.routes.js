@@ -1,34 +1,21 @@
 import express from "express";
 import PaymentMethod from "../models/paymentMethod.model.js";
+import authMiddleware from "../middleware/auth.middleware.js";
+import adminMiddleware from "../middleware/admin.middleware.js";
 
 const router = express.Router();
 
-
-// عرض كل طرق الدفع
 router.get("/", async (req, res) => {
   try {
-    const methods = await PaymentMethod.find({
-      enabled: true
-    });
-
-    res.json({
-      success: true,
-      methods
-    });
-
+    const methods = await PaymentMethod.find({ enabled: true });
+    res.json({ success: true, methods });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-
-// إضافة طريقة دفع جديدة
-router.post("/", async (req, res) => {
+router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-
     const method = await PaymentMethod.create({
       name: req.body.name,
       type: req.body.type,
@@ -36,51 +23,23 @@ router.post("/", async (req, res) => {
       accountNumber: req.body.accountNumber,
       qrImage: req.body.qrImage || ""
     });
-
-    res.json({
-      success: true,
-      method
-    });
-
+    res.json({ success: true, method });
   } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-
+    res.status(400).json({ success: false, message: error.message });
   }
 });
 
-
-// تشغيل / إيقاف طريقة دفع
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-
     const method = await PaymentMethod.findByIdAndUpdate(
       req.params.id,
-      {
-        enabled: req.body.enabled
-      },
-      {
-        new: true
-      }
+      { enabled: req.body.enabled },
+      { new: true }
     );
-
-    res.json({
-      success: true,
-      method
-    });
-
+    res.json({ success: true, method });
   } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-
+    res.status(400).json({ success: false, message: error.message });
   }
 });
-
 
 export default router;

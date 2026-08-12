@@ -1,4 +1,6 @@
 import express from "express";
+import authMiddleware from "../middleware/auth.middleware.js";
+import adminMiddleware from "../middleware/admin.middleware.js";
 
 import {
     getProviders,
@@ -14,15 +16,15 @@ const router = express.Router();
 router.get("/", getProviders);
 
 // إضافة مزود
-router.post("/add", addProvider);
+router.post("/add", authMiddleware, adminMiddleware, addProvider);
 
 // تعديل مزود
-router.put("/:id", updateProvider);
+router.put("/:id", authMiddleware, adminMiddleware, updateProvider);
 
 // حذف مزود
-router.delete("/:id", deleteProvider);
+router.delete("/:id", authMiddleware, adminMiddleware, deleteProvider);
 
 // اختبار الاتصال
-router.get("/:id/test", testProvider);
+router.get("/:id/test", authMiddleware, adminMiddleware, testProvider);
 
 export default router;

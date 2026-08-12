@@ -1,7 +1,24 @@
-# Central Settings
+# Smart Charge Store — Central Settings
 
-Edit `Smart Charge Store.Settings.js` for store-level settings: branding, currency rates, payments, support, providers, servers and feature flags.
+Edit only `Smart Charge Store.Settings.js` for public/store configuration:
+- exchange rates
+- enabled currencies
+- branding
+- payment methods
+- support contacts
+- automatic order/deposit switches
+- duplicate receipt protection
+- provider registry
+- public backend URL
+- Google client ID
 
-Secrets stay only in `_backend_/.env` (Mongo URI, JWT secret, provider tokens). Provider entries reference secrets with `secretEnv`; the secret value is never stored in this file.
+NEVER put secrets in this file.
 
-To add a provider: add an object to `providers`. To disable one: set `enabled: false`. Providers omitted from the registry are disabled in the database rather than deleted.
+Secrets stay in `_backend_/.env`:
+- `MONGO_URI`
+- `JWT_SECRET`
+- `SYRIAMARKET_API_TOKEN`
+- provider tokens/passwords
+- `GOOGLE_CLIENT_SECRET` (if a future server-side OAuth flow needs it)
+
+Automatic order execution never claims success without a real provider response.
